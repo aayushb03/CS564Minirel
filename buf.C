@@ -75,9 +75,40 @@ BufMgr::~BufMgr() {
  */
 const Status BufMgr::allocBuf(int & frame) 
 {
+    int initialClockHand = clockHand;
 
+    do {
+        advanceClock();
+        BufDesc* bufDesc = &bufTable[clockHand];
 
+        if (!bufDesc->valid) {
+            frame = clockHand;
+            return OK;
+        }
 
+        if (bufDesc->refbit) {
+            bufDesc->refbit = false;
+            continue;
+        }
+
+        if (bufDesc->pinCnt > 0) {
+            continue;
+        }
+
+        if (bufDesc->dirty) {
+            Status status = bufDesc->file->writePage(bufDesc->pageNo, &bufPool[clockHand]);
+            if (status != OK) return UNIXERR;
+            bufStats.diskwrites++;
+        }
+
+        hashTable->remove(bufDesc->file, bufDesc->pageNo);
+        bufDesc->Clear();
+        frame = clockHand;
+        return OK;
+
+    } while (clockHand != initialClockHand);
+
+    return BUFFEREXCEEDED;
 }
  
 
@@ -97,11 +128,29 @@ const Status BufMgr::allocBuf(int & frame)
  */	
 const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 {
+    int frameNo;
+    Status status = hashTable->lookup(file, PageNo, frameNo);
 
+    if (status == HASHNOTFOUND) {
+        status = allocBuf(frameNo);
+        if (status != OK) return status;
 
+        status = file->readPage(PageNo, &bufPool[frameNo]);
+        if (status != OK) return UNIXERR;
+        bufStats.diskreads++;
 
+        status = hashTable->insert(file, PageNo, frameNo);
+        if (status != OK) return HASHTBLERROR;
 
+        bufTable[frameNo].Set(file, PageNo);
+    } else {
+        bufTable[frameNo].refbit = true;
+        bufTable[frameNo].pinCnt++;
+    }
 
+    page = &bufPool[frameNo];
+    bufStats.accesses++;
+    return OK;
 }
 
 
@@ -113,11 +162,17 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 const Status BufMgr::unPinPage(File* file, const int PageNo, 
 			       const bool dirty) 
 {
+    int frameNo;
+    Status status = hashTable->lookup(file, PageNo, frameNo);
+    if (status != OK) return HASHNOTFOUND;
 
+    BufDesc* bufDesc = &bufTable[frameNo];
+    if (bufDesc->pinCnt == 0) return PAGENOTPINNED;
 
+    bufDesc->pinCnt--;
+    if (dirty) bufDesc->dirty = true;
 
-
-
+    return OK;
 }
 
 /* This call is kind of weird.  The first step is to to allocate an empty page in the specified file by invoking the file->allocatePage() method. 
@@ -131,13 +186,21 @@ const Status BufMgr::unPinPage(File* file, const int PageNo,
  */
 const Status BufMgr::allocPage(File* file, int& pageNo, Page*& page) 
 {
+    Status status = file->allocatePage(pageNo);
+    if (status != OK) return UNIXERR;
 
+    int frameNo;
+    status = allocBuf(frameNo);
+    if (status != OK) return status;
 
+    status = hashTable->insert(file, pageNo, frameNo);
+    if (status != OK) return HASHTBLERROR;
 
+    bufTable[frameNo].Set(file, pageNo);
+    page = &bufPool[frameNo];
 
-
-
-
+    bufStats.accesses++;
+    return OK;
 }
 
 const Status BufMgr::disposePage(File* file, const int pageNo) 
