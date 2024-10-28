@@ -76,37 +76,43 @@ BufMgr::~BufMgr() {
 const Status BufMgr::allocBuf(int & frame) 
 {
     int initialClockHand = clockHand;
-
+    // cout << clockHand << endl;
     do {
-        advanceClock();
+
         BufDesc* bufDesc = &bufTable[clockHand];
 
         if (!bufDesc->valid) {
             frame = clockHand;
+            bufDesc->Set(bufDesc->file, bufDesc->pageNo);
             return OK;
         }
 
         if (bufDesc->refbit) {
-            bufDesc->refbit = false;
+            bufDesc->Clear();
+            advanceClock();
+
             continue;
         }
 
         if (bufDesc->pinCnt > 0) {
+            advanceClock();
+
             continue;
         }
 
         if (bufDesc->dirty) {
             Status status = bufDesc->file->writePage(bufDesc->pageNo, &bufPool[clockHand]);
             if (status != OK) return UNIXERR;
-            bufStats.diskwrites++;
+            // bufStats.diskwrites++;
         }
 
+        bufDesc->Set(bufDesc->file, bufDesc->pageNo);
         hashTable->remove(bufDesc->file, bufDesc->pageNo);
-        bufDesc->Clear();
         frame = clockHand;
         return OK;
 
     } while (clockHand != initialClockHand);
+
 
     return BUFFEREXCEEDED;
 }
