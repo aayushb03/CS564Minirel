@@ -76,6 +76,43 @@ BufMgr::~BufMgr() {
 const Status BufMgr::allocBuf(int & frame) 
 {
 
+    while (true) {
+        BufDesc* tmpbuf = &(bufTable[clockHand]);
+
+        // is valid set?
+        if (tmpbuf->valid == true) {
+            // remove appropriate entry from hash table??
+
+
+            if (tmpbuf->refbit == true) {
+                // clear refbit and advance clock hand
+                tmpbuf->Clear();
+                advanceClock();
+                continue;
+            }
+        
+
+        }
+
+        if (tmpbuf->pinCnt == 0) {
+           
+           if (tmpbuf->dirty == true) {
+               // write dirty page back to disk
+               if (tmpbuf->file->writePage(tmpbuf->pageNo, &(bufPool[clockHand])) != OK) {
+                   return UNIXERR;
+               }
+           }
+           // after flushing, invoke set() on frame
+           tmpbuf->Set(tmpbuf->file, tmpbuf->pageNo);
+           return OK;
+        } else {
+            // if pin count is greater than 0, we cannot evict this page
+            advanceClock();
+            continue;
+        }
+        
+    }
+
 
 
 }
@@ -131,7 +168,6 @@ const Status BufMgr::unPinPage(File* file, const int PageNo,
  */
 const Status BufMgr::allocPage(File* file, int& pageNo, Page*& page) 
 {
-
 
 
 
