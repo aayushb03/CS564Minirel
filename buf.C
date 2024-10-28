@@ -109,6 +109,7 @@ const Status BufMgr::allocBuf(int & frame)
         bufDesc->Set(bufDesc->file, bufDesc->pageNo);
         hashTable->remove(bufDesc->file, bufDesc->pageNo);
         frame = clockHand;
+        advanceClock();
         return OK;
 
     } while (clockHand != initialClockHand);
