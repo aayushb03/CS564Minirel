@@ -123,10 +123,10 @@ int main()
       CALL(bufMgr->allocPage(file3, pageno3, page3));
       sprintf((char*)page3, "test.3 Page %d %7.1f", pageno3, (float)pageno3);
       pageno = j[random() % num];
+
       CALL(bufMgr->readPage(file1, pageno, page));
       sprintf((char*)&cmp, "test.1 Page %d %7.1f", pageno, (float)pageno);
       ASSERT(memcmp(page, &cmp, strlen((char*)&cmp)) == 0);
-      cout << (char*)page << endl;
       CALL(bufMgr->readPage(file2, pageno2, page2));
       sprintf((char*)&cmp, "test.2 Page %d %7.1f", pageno2, (float)pageno2);
       ASSERT(memcmp(page2, &cmp, strlen((char*)&cmp)) == 0);
@@ -211,6 +211,7 @@ int main()
     for (i = 0; i < num; i++) {
       CALL(bufMgr->allocPage(file4, j[i], page));
       sprintf((char*)page, "test.4 Page %d %7.1f", j[i], (float)j[i]);
+      cout << "PAGE: " << (char*)page << endl;
     }
 
     int tmp;

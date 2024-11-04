@@ -76,6 +76,7 @@ BufMgr::~BufMgr() {
 const Status BufMgr::allocBuf(int & frame) 
 {
     int initialClockHand = clockHand;
+    int iterations = 0;
     // cout << clockHand << endl;
     do {
 
@@ -83,12 +84,11 @@ const Status BufMgr::allocBuf(int & frame)
 
         if (!bufDesc->valid) {
             frame = clockHand;
-            bufDesc->Set(bufDesc->file, bufDesc->pageNo);
             return OK;
         }
 
         if (bufDesc->refbit) {
-            bufDesc->Clear();
+            bufDesc->refbit = false;
             advanceClock();
 
             continue;
@@ -102,17 +102,18 @@ const Status BufMgr::allocBuf(int & frame)
 
         if (bufDesc->dirty) {
             Status status = bufDesc->file->writePage(bufDesc->pageNo, &bufPool[clockHand]);
+            bufDesc->dirty = false;
             if (status != OK) return UNIXERR;
-            // bufStats.diskwrites++;
+            bufStats.diskwrites++;
         }
 
-        bufDesc->Set(bufDesc->file, bufDesc->pageNo);
         hashTable->remove(bufDesc->file, bufDesc->pageNo);
+
         frame = clockHand;
         advanceClock();
         return OK;
 
-    } while (clockHand != initialClockHand);
+    } while (clockHand != initialClockHand || ++iterations < 2);
 
 
     return BUFFEREXCEEDED;
@@ -136,8 +137,9 @@ const Status BufMgr::allocBuf(int & frame)
 const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 {
     int frameNo;
+    // check if page in mem
     Status status = hashTable->lookup(file, PageNo, frameNo);
-
+    cout << "frame no: " << frameNo << endl;
     if (status == HASHNOTFOUND) {
         status = allocBuf(frameNo);
         if (status != OK) return status;
@@ -150,12 +152,17 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
         if (status != OK) return HASHTBLERROR;
 
         bufTable[frameNo].Set(file, PageNo);
-    } else {
+    } else if (status == OK) {
+        cout << "Page in mem" << endl;
         bufTable[frameNo].refbit = true;
         bufTable[frameNo].pinCnt++;
+    } else {
+        return HASHTBLERROR;
     }
 
     page = &bufPool[frameNo];
+    cout << "readPage: " << PageNo << endl;
+    // page->dumpPage();
     bufStats.accesses++;
     return OK;
 }
