@@ -75,13 +75,10 @@ BufMgr::~BufMgr() {
  */
 const Status BufMgr::allocBuf(int & frame) 
 {
-    int initialClockHand = clockHand;
+    uint initialClockHand = clockHand;
     int iterations = 0;
-    // cout << clockHand << endl;
     do {
-
         BufDesc* bufDesc = &bufTable[clockHand];
-
         if (!bufDesc->valid) {
             frame = clockHand;
             return OK;
@@ -90,13 +87,11 @@ const Status BufMgr::allocBuf(int & frame)
         if (bufDesc->refbit) {
             bufDesc->refbit = false;
             advanceClock();
-
             continue;
         }
 
         if (bufDesc->pinCnt > 0) {
             advanceClock();
-
             continue;
         }
 
@@ -104,7 +99,6 @@ const Status BufMgr::allocBuf(int & frame)
             Status status = bufDesc->file->writePage(bufDesc->pageNo, &bufPool[clockHand]);
             bufDesc->dirty = false;
             if (status != OK) return UNIXERR;
-            bufStats.diskwrites++;
         }
 
         hashTable->remove(bufDesc->file, bufDesc->pageNo);
@@ -112,10 +106,7 @@ const Status BufMgr::allocBuf(int & frame)
         frame = clockHand;
         advanceClock();
         return OK;
-
     } while (clockHand != initialClockHand || ++iterations < 2);
-
-
     return BUFFEREXCEEDED;
 }
  
@@ -201,19 +192,25 @@ const Status BufMgr::unPinPage(File* file, const int PageNo,
 const Status BufMgr::allocPage(File* file, int& pageNo, Page*& page) 
 {
     Status status = file->allocatePage(pageNo);
-    if (status != OK) return UNIXERR;
+    if (status != OK) {
+        return UNIXERR;
+    }
 
     int frameNo;
     status = allocBuf(frameNo);
-    if (status != OK) return status;
+    if (status != OK) {
+        return status;
+    }
 
     status = hashTable->insert(file, pageNo, frameNo);
-    if (status != OK) return HASHTBLERROR;
+    if (status != OK) {
+        unPinPage(file, pageNo, false);
+        return HASHTBLERROR;
+    }
 
     bufTable[frameNo].Set(file, pageNo);
     page = &bufPool[frameNo];
 
-    bufStats.accesses++;
     return OK;
 }
 

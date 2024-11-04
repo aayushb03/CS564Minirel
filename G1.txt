@@ -1,0 +1,9 @@
+Dane Jacobson ddjacobson@wisc.edu
+Aayush Bharadwaj abbharadwaj@wisc.edu
+Preston Wray pdwray@wisc.edu
+
+Dane read over the project write up and documenation for Minirel and shared back with the rest of the group so all understood
+Aayush watched the Project 3 video on Canvas and developed a good understanding of how the clock algorithm will be implemented
+Preston looked at the project code to understand how all parts worked together and made sure all other members of the group felt confident in working with the system
+
+All members of the team met up on 10/20 and 10/28 to work on the code, and again on 11/4 to test, verify, and submit code, with each contributing to writing and debugging the methods
