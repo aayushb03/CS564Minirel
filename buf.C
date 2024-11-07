@@ -79,6 +79,8 @@ const Status BufMgr::allocBuf(int & frame)
     int iterations = 0;
     do {
         BufDesc* bufDesc = &bufTable[clockHand];
+        bufStats.accesses++;
+
         if (!bufDesc->valid) {
             frame = clockHand;
             return OK;
@@ -97,6 +99,7 @@ const Status BufMgr::allocBuf(int & frame)
 
         if (bufDesc->dirty) {
             Status status = bufDesc->file->writePage(bufDesc->pageNo, &bufPool[clockHand]);
+            bufStats.diskwrites++;
             bufDesc->dirty = false;
             if (status != OK) return UNIXERR;
         }
@@ -128,8 +131,9 @@ const Status BufMgr::allocBuf(int & frame)
 const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 {
     int frameNo;
-    // check if page in mem
     Status status = hashTable->lookup(file, PageNo, frameNo);
+    bufStats.accesses++;
+
     cout << "frame no: " << frameNo << endl;
     if (status == HASHNOTFOUND) {
         status = allocBuf(frameNo);
@@ -152,8 +156,6 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
     }
 
     page = &bufPool[frameNo];
-    cout << "readPage: " << PageNo << endl;
-    // page->dumpPage();
     bufStats.accesses++;
     return OK;
 }
@@ -172,6 +174,7 @@ const Status BufMgr::unPinPage(File* file, const int PageNo,
     if (status != OK) return HASHNOTFOUND;
 
     BufDesc* bufDesc = &bufTable[frameNo];
+    bufStats.diskreads++;
     if (bufDesc->pinCnt == 0) return PAGENOTPINNED;
 
     bufDesc->pinCnt--;
